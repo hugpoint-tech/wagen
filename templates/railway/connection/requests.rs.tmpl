@@ -1,0 +1,81 @@
+use crate::types::Request;
+use crate::types::Object;
+use crate::types::MessageHeader;
+use crate::connection::WaylandConnection;
+use crate::types::Request::*;
+
+impl WaylandConnection {
+
+pub fn enqueue(&self, req: Request) -> u32 {
+        let data =  unsafe { &mut *self.data.get() };
+        // Used as a return value, not all requests generate a new_id,
+        // according to the spec 0 ID is reserved to represent a null or non-existent object.
+        let mut new_id: u32 = 0;
+
+        match req {
+        {%- for interface in protocol.interfaces %}
+        {%- for request in interface.requests %}
+            // {{ interface.name ~ ":" ~ request.name }}
+            {{ interface.name ~ "_" ~ request.name | to_pascal }}{sendto
+           {%- for arg in request.args -%}
+            {%- if arg.arg_type == "new_id" -%}
+            {%- if not arg.interface -%}
+            ,if_name,if_version
+            {%- endif -%}
+            {%- else -%}
+            ,{{ arg.name }}
+            {%- endif -%}
+            {%- endfor -%}} => {
+                {%- for arg in request.args %}
+                {%- if  arg.arg_type == "new_id" and arg.interface and arg.interface == "wl_callback" %}
+                new_id = data.allocate_id(Object::{{interface.name ~ "_" ~ request.name | to_pascal}}Callback);
+                {%- endif %}
+                {%- if  arg.arg_type == "new_id" and arg.interface and not arg.interface == "wl_callback"%}
+                new_id = data.allocate_id(Object::{{arg.interface| to_pascal}});
+                {%- endif %}
+                {%- if  arg.arg_type == "new_id" and not arg.interface %}
+                let kind = Object::from_str(&if_name).unwrap();
+                new_id = data.allocate_id(kind);
+                {%- endif %}
+                {%- endfor %}
+                let hdr_pos = data.send_buf.len();
+                data.send_buf.set_len(hdr_pos + 8);
+                {%- for arg in request.args %}
+                {%- if arg.arg_type == "int"%}
+                data.write_int({{ arg.name }});
+                {%- elif arg.arg_type == "uint"%}
+                data.write_uint({{ arg.name }});
+                {%- elif arg.arg_type == "string"%}
+                data.write_string({{arg.name}});
+                {%- elif arg.arg_type == "fd"%}
+                data.write_fd({{arg.name}});
+                {%- elif arg.arg_type == "object"%}
+                data.write_uint({{ arg.name }});
+                {%- elif arg.arg_type == "fixed"%}
+                // data.write_uint({{ arg.name }}.0);
+                {%- elif arg.arg_type == "array"%}
+                data.write_array({{ arg.name }});
+                {%- elif arg.arg_type == "new_id"%}
+                {%- if arg.interface %}
+                data.write_uint(new_id);
+                {%- else %}
+                data.write_string(if_name);
+                data.write_uint(if_version);
+                data.write_uint(new_id);
+                {%- endif %}
+                {%- endif %}
+                {%- endfor %}
+                let hdr = MessageHeader {
+                    obj_id: sendto,
+                    opcode: {{request.opcode}}u16,
+                    len: (data.send_buf.len() - hdr_pos) as u16
+                };
+                data.write_header(hdr, hdr_pos);
+            },
+        {%- endfor %}
+        {%- endfor %}
+        }
+        return new_id
+    }
+
+}

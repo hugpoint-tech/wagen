@@ -1,0 +1,65 @@
+{{- /*gotype: wagen.hugpoint.tech.Protocols*/ -}}
+use std::os::fd::RawFd;
+use crate::connection::types::Fixed;
+
+#[derive(Debug, Clone)]
+pub enum Request {
+{{- range $protocol := . }}
+{{- range $interface := $protocol.Interfaces }}
+{{- range $request := $interface.Requests }}
+    /// {{ $interface.Name}}:{{ $request.Name}} request
+    {{- if $request.Description }}
+    {{- range $line := ToLines $request.Description }}
+    /// {{$line}}
+    {{- end }}
+    {{ ToPascal $interface.Name $request.Name }} {
+		/// id of the object to send a request to
+        sendto: u32,
+		{{- range $arg := $request.Args}}
+        {{- if and $arg.Summary (ne $arg.Type "new_id") }}
+		/// {{ $arg.Summary }}
+		{{- end }}
+		{{- if and $arg.Description (ne $arg.Type "new_id") }}
+		{{- range $line := ToLines $arg.Description }}
+		/// {{ $line }}
+		{{- end }}
+		{{- end }}
+		{{- if eq $arg.Type "int"}}
+        {{ $arg.Name }}: i32,
+		{{- end }}
+		{{- if eq $arg.Type "uint"}}
+        {{ $arg.Name }}: u32,
+		{{- end }}
+		{{- if eq $arg.Type "string"}}
+        {{ $arg.Name }}: String,
+		{{- end }}
+		{{- if eq $arg.Type "fd"}}
+        {{ $arg.Name }}: RawFd,
+		{{- end }}
+		{{- if eq $arg.Type "object"}}
+        {{ $arg.Name }}: u32,
+		{{- end }}
+		{{- if eq $arg.Type "fixed"}}
+        {{ $arg.Name }}: Fixed,
+		{{- end }}
+		{{- if eq $arg.Type "array"}}
+        {{ $arg.Name }}: Vec<u32>,
+		{{- end }}
+		{{- if and (eq $arg.Type "new_id") (not $arg.Interface) }}
+		/// new_id value without interface must be preceded by a string and a version
+		if_name: String,
+		if_version: u32
+		{{- end }}
+		{{- if and (eq $arg.Type "new_id") ($arg.Interface) }}
+		// new_id can't be allocated by the requesting entity.
+		// Ids are managed by the client and must be allocated strictly in a sequential order
+		// new_id: u32
+		{{- end }}
+		{{- end }}
+	},
+{{ end }}
+{{- end }}
+{{- end }}
+{{- end }}
+}
+

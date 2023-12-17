@@ -1,0 +1,155 @@
+{{- /*gotype: wagen.hugpoint.tech.Protocols*/ -}}
+use crate::types::Id;
+use crate::connection::WaylandConnection;
+use crate::types::Request;
+
+use std::os::fd::RawFd;
+
+#[derive(Debug, Clone, Copy)]
+/// All wayland interfaces
+pub enum Object {
+
+    /// The 0 ID is reserved to represent a null or non-existent object
+    Null,
+{{- range $protocol := . }}
+{{- range $interface := $protocol.Interfaces }}
+    {{- if eq $interface.Name "wl_callback" }}
+        {{- continue }}
+    {{- end  }}
+
+    {{- range $line := ToLines $interface.Description }}
+    /// {{ Trim $line }}
+    {{- end }}
+    {{ ToPascal $interface.Name }},
+    {{ range $req := $interface.Requests }}
+    {{- range $arg := $req.Args }}
+    {{- if and (eq $arg.Type "new_id") (eq $arg.Interface "wl_callback") }}
+    /// Typed wl_callback object for {{ $interface.Name }}:{{ $req.Name}}
+    {{ ToPascal $interface.Name $req.Name }}Callback,
+    {{ break }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+}
+
+impl Object {
+
+    pub fn from_str(s: &str) -> Option<Self> {
+    use Object::*;
+        match s {
+{{- range $protocol := . }}
+{{- range $interface := $protocol.Interfaces }}
+{{- if eq $interface.Name "wl_callback" }}
+{{- continue }}
+{{- end  }}
+            "{{ $interface.Name}}" => Some({{ ToPascal $interface.Name }}),
+{{- end }}
+{{- end }}
+            _ => None
+        }
+    }
+}
+
+{{- range $protocol := . }}
+{{- range $interface := $protocol.Interfaces }}
+{{- if eq $interface.Name "wl_callback" }}
+{{- continue }}
+{{- end  }}
+{{- range $req := $interface.Requests }}
+{{- range $arg := $req.Args }}
+{{- if and (eq $arg.Type "new_id") (eq $arg.Interface "wl_callback") }}
+/// Typed wl_callback object for {{ $interface.Name }}:{{ $req.Name}}
+#[derive(Clone, Copy)]
+pub struct {{ ToPascal $interface.Name $req.Name }}Callback {
+    pub id: u32,
+}
+{{ break }}
+{{- end  }}
+{{- end }}
+{{- end }}
+
+{{- range $line := ToLines $interface.Description }}
+/// {{ Trim $line }}
+{{- end }}
+#[derive(Clone, Copy)]
+pub struct {{ ToPascal $interface.Name }}{
+    pub id: u32,
+}
+
+impl {{ ToPascal $interface.Name }} {
+{{- range $req := $interface.Requests }}
+{{ $RET := "" }}
+    /// `{{ $interface.Name }}:{{ $req.Name }}` request
+{{- if $req.Description }}
+{{- range $line := ToLines $req.Description }}
+    /// {{ Trim $line }}
+{{- end }}
+{{- end }}
+    pub fn r#{{ $req.Name }}(
+		&self,
+		connection: &WaylandConnection,
+{{- range $arg := $req.Args -}}
+    {{- if eq $arg.Type "int" }}
+        {{ $arg.Name }}: i32,
+	{{- end }}
+    {{- if eq $arg.Type "uint" }}
+        {{ $arg.Name }}: u32,
+    {{- end }}
+    {{- if eq $arg.Type "string" }}
+        {{ $arg.Name }}: String,
+    {{- end }}
+    {{- if eq $arg.Type "fd" }}
+        {{ $arg.Name }}: RawFd,
+    {{- end }}
+    {{- if eq $arg.Type "object" }}
+        {{ $arg.Name }}:{{- if $arg.Interface -}}{{ ToPascal $arg.Interface }}{{else}}Id{{end}},
+    {{- end }}
+    {{- if eq $arg.Type "fixed" }}
+        {{ $arg.Name }}: Fixed,
+    {{- end }}
+    {{- if eq $arg.Type "array" }}
+        {{ $arg.Name }}: Vec<u8>,
+    {{- end }}
+    {{- if eq $arg.Type "new_id" }}
+        {{- if and $arg.Interface (eq $arg.Interface "wl_callback") }}
+            {{- $RET = ToPascal $interface.Name $req.Name "callback" }}
+        {{- end }}
+        {{- if and $arg.Interface (ne $arg.Interface "wl_callback") }}
+            {{- $RET = ToPascal $arg.Interface }}
+        {{- end }}
+        {{- if not $arg.Interface }}
+        {{- $RET = "Id" }}
+		if_name: String,
+		if_version: u32,
+        {{- end }}
+    {{- end }}
+{{- end }}
+    ) {{ if ne $RET "" }}-> {{$RET}} {{ end -}} {
+		let req = Request::{{ ToPascal $interface.Name $req.Name }}{
+            sendto: self.id,
+            {{- range $arg := $req.Args }}
+            {{- if eq $arg.Type "object" }}
+            {{ $arg.Name }}: {{ $arg.Name }}.id,
+            {{- else }}{{if eq $arg.Type "new_id" }}
+            {{- if not $arg.Interface }}
+            if_name,
+            if_version,
+            {{- end }}
+            {{- else }}
+            {{ $arg.Name }},
+            {{- end }}
+            {{- end }}
+            {{- end }}
+        };
+        let enq_id = connection.enqueue(req);
+
+        {{- if ne $RET "" }}
+        return {{ $RET }}{ id: enq_id };
+        {{- end }}
+    }
+    {{- end }}
+}
+{{ end }}
+{{ end }}

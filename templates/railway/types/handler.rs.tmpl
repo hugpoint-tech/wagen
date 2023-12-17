@@ -1,0 +1,24 @@
+use crate::types::events::*;
+use crate::connection::WaylandConnection;
+
+#[allow(unused)]
+pub trait EventHandler{
+{%- for interface in protocol.interfaces %}
+{%- for req in interface.requests %}
+{%- for arg in req.args %}
+{%- if arg.arg_type == "new_id" and arg.interface == "wl_callback" %}
+    fn on_{{ interface.name }}_{{ req.name }}_done(&mut self, event: {{ interface.name ~ "_" ~ req.name ~ "_" ~ "done" | to_pascal }}Event, connection: &WaylandConnection) {}
+{% break %}
+{%- endif  %}
+{%- endfor %}
+{%- endfor %}
+
+{%- if interface.events  %}
+{%- if interface.name == "wl_callback" %}{%- continue %}{%- else %}
+{%- for event in interface.events %}
+    fn on_{{ interface.name }}_{{ event.name }}(&mut self, event: {{ interface.name ~ "_" ~ event.name | to_pascal }}Event, connection: &WaylandConnection) {}
+{% endfor %}
+{%- endif  %}
+{%- endif  %}
+{%- endfor %}
+}

@@ -1,0 +1,97 @@
+use crate::connection::WaylandConnection;
+use crate::connection::WaylandConnectionPrivate;
+use crate::types::Fixed;
+use crate::types::events::*;
+use crate::types::handler::EventHandler;
+use crate::types::object::Object;
+
+impl WaylandConnectionPrivate {
+
+    pub(crate) fn dispatch_event<T: EventHandler>(&mut self, c: &WaylandConnection, state: &mut T) {
+        if self.recv_pos >= self.recv_buf.len() {
+            return
+        }
+
+        let hdr = self.get_header();
+        let id =  hdr.obj_id;
+        let op = hdr.opcode;
+        let obj = self.objects[id as usize];
+
+        match obj {
+            Object::Null => panic!("object of type null was sent by the server"),
+        {%- for interface in protocol.interfaces %}
+
+        {%- for req in interface.requests %}
+        {%- for arg in req.args %}
+        {%- if arg.arg_type == "new_id" and arg.interface == "wl_callback" %}
+            Object::{{ interface.name ~ "_" ~ req.name | to_pascal }}Callback => {
+                match op {
+                    0 =>{
+                        let event = {{ interface.name ~ "_" ~ req.name | to_pascal }}DoneEvent {
+                                source_id: id,
+                                data: self.get_uint(),
+                        };
+                        println!("dispatch: event {:?}", event);
+                        state.on_{{ interface.name ~ "_" ~ req.name  }}_done(event, c);
+                    },
+                    _ => ()
+                }
+            },
+        {% break %}
+        {%- endif  %}
+        {%- endfor %}
+        {%- endfor %}
+
+        {%- if interface.name == "wl_callback" %}
+        {%- continue %}
+        {%- endif  %}
+        {%- if interface.events %}
+            Object::{{ interface.name | to_pascal }} => {
+                match op {
+                {%- for event in interface.events %}
+                    {{ event.opcode }} =>{
+                        let event = {{ interface.name ~ "_" ~ event.name | to_pascal }}Event {
+                            source_id: id,
+                            {%- for arg in event.args %}
+                            {%- if arg.arg_type == "int"%}
+                            {%- if arg.enum_type %}
+                            {{ arg.name }}: (self.get_int() as u32).into(),
+                            {%- else %}
+                            {{ arg.name }}: self.get_int(),
+                            {%- endif %}
+                            {%- elif arg.arg_type == "uint"%}
+                            {%- if arg.enum_type %}
+                            {{ arg.name }}: self.get_uint().into(),
+                            {%- else %}
+                            {{ arg.name }}: self.get_uint(),
+                            {%- endif %}
+                            {%- elif arg.arg_type == "string"%}
+                            {{ arg.name }}: self.get_str(),
+                            {%- elif arg.arg_type == "fd"%}
+                            {{ arg.name }}: self.get_fd(),
+                            {%- elif arg.arg_type == "object"%}
+                            {{ arg.name }}: self.get_uint(),
+                            {%- elif arg.arg_type == "fixed"%}
+                            {{ arg.name }}: Fixed::new(self.get_uint()),
+                            {%- elif arg.arg_type == "array"%}
+                            {{ arg.name }}: self.get_vec(),
+                            {%- elif arg.arg_type == "new_id"%}
+                            // new_id
+                            {{ arg.name }}: self.get_uint(),
+                            {%- endif %}
+                            {%- endfor %}
+                        };
+                        println!("dispatch: event {:?}", event);
+                        state.on_{{interface.name}}_{{ event.name }}(event, c);
+                    },
+        {%- endfor %}
+                    _ => (),
+                }
+            },
+        {%- else %}
+            Object::{{ interface.name | to_pascal }} => panic!("event from object with no events"),
+        {%- endif %}
+{%- endfor %}
+        }
+    }
+}
