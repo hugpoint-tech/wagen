@@ -36,6 +36,15 @@ const (
 	Fd
 )
 
+type ProtocolMaturity int
+
+const (
+	Core ProtocolMaturity = iota
+	Stable
+	Staging
+	Unstable
+)
+
 // Protocol
 // <!ELEMENT protocol (copyright?, description?, interface+)>
 // <!ATTLIST protocol name CDATA #REQUIRED>
@@ -44,6 +53,7 @@ type Protocol struct {
 	Description string      `xml:"description,omitempty"`
 	Copyright   string      `xml:"copyright,omitempty"`
 	Interfaces  []Interface `xml:"interface"`
+	Maturity    ProtocolMaturity
 }
 
 type Protocols []Protocol

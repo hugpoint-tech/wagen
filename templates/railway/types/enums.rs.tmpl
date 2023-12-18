@@ -1,36 +1,40 @@
+// !!! THIS FILE IS GENERATED WITH WAGEN !!!
+// !!! DO NOT MODIFY THIS FILE MANUALLY, EDIT TEMPLATE INSTEAD !!!
 use std::ops::{BitAnd, BitOr, BitOrAssign};
 #[allow(dead_code)]
-{%- for interface in protocol.interfaces %}
-{%- for enum in interface.enums %}
+{{- range $protocol := . }}
 
-/// {{ interface.name}}:{{enum.name}} enum
-{%- if enum.description %}
-{%- for line in enum.description %}
-///{{" " ~ line | trim_end }}
-{%- endfor %}
-{%- endif %}
-{%- if enum.bitfield %}
+{{- range $interface := $protocol.Interfaces }}
+{{- range $enum := $interface.Enums }}
+
+/// {{ $interface.Name}}:{{ $enum.Name }} enum
+{{- if $enum.Description }}
+{{- range $line := ToLines $enum.Description }}
+/// {{ Trim $line }}
+{{- end }}
+{{- end }}
+{{- if $enum.Bitfield }}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct {{ interface.name ~ "_" ~ enum.name | to_pascal }} {
+pub struct {{ ToPascal $interface.Name $enum.Name }} {
     value: u32,
 }
 
-impl From<u32> for {{ interface.name ~ "_" ~ enum.name | to_pascal }} {
+impl From<u32> for {{ ToPascal $interface.Name $enum.Name }} {
     fn from(value: u32) -> Self {
         Self { value }
     }
 }
 
-impl {{ interface.name ~ "_" ~ enum.name | to_pascal }} {
-{%- for entry in enum.entries %}
-{%- if entry.summary %}
-    /// {{ entry.summary }}
-{%- endif %}
-    pub const {{ entry.name | to_pascal | upper }}:Self = {{ interface.name ~ "_" ~ enum.name | to_pascal }}{ value: {{ entry.value }} };
-{%- endfor %}
+impl {{ ToPascal $interface.Name $enum.Name }} {
+{{- range $entry := $enum.Entries }}
+{{- if $entry.Summary }}
+    /// {{ $entry.Summary }}
+{{- end }}
+    pub const {{ Upper (ToPascal $entry.Name) }}:Self = {{ ToPascal $interface.Name $enum.Name }}{ value: {{ $entry.Value }} };
+{{- end }}
 
     pub fn new() -> Self {
-        {{ interface.name ~ "_" ~ enum.name | to_pascal }} { value: 0 }
+        {{ ToPascal $interface.Name $enum.Name }} { value: 0 }
     }
 
     pub fn contains(&self, flag: Self) -> bool {
@@ -46,7 +50,7 @@ impl {{ interface.name ~ "_" ~ enum.name | to_pascal }} {
     }
 }
 
-impl BitAnd for {{ interface.name ~ "_" ~ enum.name | to_pascal }} {
+impl BitAnd for {{ ToPascal $interface.Name $enum.Name }} {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self::Output {
@@ -56,7 +60,7 @@ impl BitAnd for {{ interface.name ~ "_" ~ enum.name | to_pascal }} {
     }
 }
 
-impl BitOr for {{ interface.name ~ "_" ~ enum.name | to_pascal }} {
+impl BitOr for {{ ToPascal $interface.Name $enum.Name }} {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self::Output {
@@ -66,48 +70,52 @@ impl BitOr for {{ interface.name ~ "_" ~ enum.name | to_pascal }} {
     }
 }
 
-impl BitOrAssign for {{ interface.name ~ "_" ~ enum.name | to_pascal }} {
+impl BitOrAssign for {{ ToPascal $interface.Name $enum.Name }} {
     fn bitor_assign(&mut self, rhs: Self) {
         self.value |= rhs.value;
     }
 }
-{%- else %}
+{{- else }}
 #[repr(u32)]
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum {{ interface.name ~ "_" ~ enum.name | to_pascal }} {
-{%- for entry in enum.entries %}
-{%- if entry.summary %}
-    /// {{ entry.summary }}
-{%- endif %}
-{%- if enum.name == "transform" %}
-    {{ "transform" ~ "_"~ entry.name | to_pascal }} = {{ entry.value }}u32,
-{%- elif enum.name == "format" %}
-    {{ entry.name | upper }} = {{ entry.value }}u32,
-{%- else %}
-    {{ entry.name | to_pascal }} = {{ entry.value }}u32,
-{%- endif %}
-{%- endfor %}
+pub enum {{ ToPascal $interface.Name $enum.Name }} {
+{{- range $entry := $enum.Entries }}
+{{- if $entry.Summary }}
+    /// {{ $entry.Summary }}
+{{- end }}
+{{- if eq $enum.Name "transform" }}
+    {{ ToPascal "transform" $entry.Name }} = {{ $entry.Value }}u32,
+{{- else }}{{- if eq $enum.Name "format" }}
+    {{ Upper $entry.Name }} = {{ $entry.Value }}u32,
+{{- else }}
+    {{ ToPascal $entry.Name }} = {{ $entry.Value }}u32,
+{{- end }}
+{{- end }}
+{{- end }}
     /// Unexpected value was receieved on the wire
     Unexpected,
 }
 
-impl From<u32> for {{ interface.name ~ "_" ~ enum.name | to_pascal }} {
+impl From<u32> for {{ ToPascal $interface.Name $enum.Name }} {
     fn from(value: u32) -> Self {
         match value {
-{%- for entry in enum.entries %}
-{%- if enum.name == "transform" %}
-            {{ entry.value }} => Self::{{ "transform" ~ "_"~ entry.name | to_pascal }},
-{%- elif enum.name == "format" %}
-            {{ entry.value }} => Self::{{ entry.name | upper }},
-{%- else %}
-            {{ entry.value }} => Self::{{ entry.name | to_pascal }},
-{%- endif %}
-{%- endfor %}
+{{- range $entry := $enum.Entries }}
+{{- if eq $enum.Name "transform" }}
+            {{ $entry.Value }} => Self::{{ ToPascal "transform" $entry.Name }},
+{{- else }}{{- if eq $enum.Name "format" }}
+            {{ $entry.Value }} => Self::{{ Upper $entry.Name }},
+{{- else }}
+            {{ $entry.Value }} => Self::{{ ToPascal $entry.Name }},
+{{- end }}
+{{- end }}
+{{- end }}
             _ => Self::Unexpected,
         }
     }
 }
-{%- endif %}
-{%- endfor %}
-{%- endfor %}
+{{- end }}
+
+{{- end }}
+{{- end }}
+{{- end }}

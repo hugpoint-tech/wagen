@@ -1,21 +1,21 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"strings"
 )
 
-func cleanText(input string) string {
+type arrayFlag []string
 
-	lines := strings.Split(input, "\n")
-	for i, line := range lines {
-		lines[i] = strings.TrimSpace(line)
-	}
-	cleanedText := strings.Join(lines, "\n")
-	cleanedText = strings.TrimSpace(cleanedText)
+func (af *arrayFlag) String() string {
+	return strings.Join(*af, ", ")
+}
 
-	return cleanedText
+func (af *arrayFlag) Set(value string) error {
+	*af = append(*af, value)
+	return nil
 }
 
 func AssertOk(msg string, err error) {
@@ -26,61 +26,108 @@ func AssertOk(msg string, err error) {
 }
 
 func main() {
-	protocols := make([]Protocol, 0, 10)
 
-	protocols = append(protocols, ReadProtocol("protocols/wayland.xml"))
-	protocols = append(protocols, ReadProtocol("protocols/stable/xdg-shell/xdg-shell.xml"))
-	protocols = append(protocols, ReadProtocol("protocols/unstable/linux-dmabuf/linux-dmabuf-unstable-v1.xml"))
+	var in string
+	var out string
+	var help bool
+	var version bool
+	var list bool
+	var show bool
+	var names arrayFlag
+	var protocols []Protocol
 
-	// Fixups
-	for i := range protocols {
-		protocols[i].Copyright = cleanText(protocols[i].Copyright)
+	flag.StringVar(&in, "in", "", "Input directory containing Go templates")
+	flag.StringVar(&out, "out", "", "Output directory for rendered results")
+	flag.BoolVar(&list, "list", false, "List available protocols")
+	flag.BoolVar(&show, "show", false, "Show protocol definitions")
+	flag.BoolVar(&help, "help", false, "Print this help")
+	flag.BoolVar(&version, "version", false, "Print version")
+	flag.Var(&names, "p", "protocol name, can be used multiple times")
+	flag.Parse()
 
-		for j := range protocols[i].Interfaces {
-			iface := &protocols[i].Interfaces[j]
-			iface.Description = cleanText(iface.Description)
-
-			for reqopcode := range iface.Requests {
-				req := &iface.Requests[reqopcode]
-				req.Description = cleanText(req.Description)
-				req.Opcode = reqopcode
-
-				for k := range req.Args {
-					arg := &req.Args[k]
-					arg.Summary = cleanText(arg.Summary)
-					arg.Description = cleanText(arg.Description)
-				}
-			}
-
-			for eventopcode := range iface.Events {
-				event := &iface.Events[eventopcode]
-				event.Description = cleanText(event.Description)
-				event.Opcode = eventopcode
-
-				for l := range event.Args {
-					arg := &event.Args[l]
-					arg.Summary = cleanText(arg.Summary)
-					arg.Description = cleanText(arg.Description)
-				}
-			}
-
-			for m := range iface.Enums {
-				enum := &iface.Enums[m]
-				enum.Description = cleanText(enum.Description)
-
-				for n := range enum.Entries {
-					entry := &enum.Entries[n]
-					entry.Description = cleanText(entry.Description)
-					entry.Summary = cleanText(entry.Summary)
-				}
-			}
-		}
+	if help {
+		flag.Usage()
+		os.Exit(0)
 	}
 
-	//tmplFiles, err := filepath.Match("./*")
-	//AssertOk("failed to locate template files", err)
+	if version {
+		fmt.Println("wagen version 0.1.0")
+		os.Exit(0)
+	}
 
-	templates := ReadTemplates()
-	ExecuteTemplates(templates, protocols)
+	if list {
+		fmt.Println("Available protocols:")
+		for k := range PROTOCOLS {
 
+			fmt.Printf(" - %s\n", k)
+		}
+		os.Exit(0)
+	}
+
+	if len(names) == 0 {
+		protocols = append(protocols, PROTOCOLS["wayland"])
+	}
+
+	for _, name := range names {
+		if name == "core" {
+			protocols = append(protocols, PROTOCOLS["wayland"])
+			continue
+		}
+
+		if name == "stable" {
+			for _, p := range PROTOCOLS {
+				if p.Maturity == Stable {
+					protocols = append(protocols, p)
+				}
+			}
+			continue
+		}
+
+		if name == "staging" {
+			for _, p := range PROTOCOLS {
+				if p.Maturity == Staging {
+					protocols = append(protocols, p)
+				}
+			}
+			continue
+		}
+
+		if name == "unstable" {
+			for _, p := range PROTOCOLS {
+				if p.Maturity == Unstable {
+					protocols = append(protocols, p)
+				}
+			}
+			continue
+		}
+
+		p, ok := PROTOCOLS[name]
+		if !ok {
+			fmt.Println("Unknown protocol name:", name)
+			fmt.Println("Run with -list to see available protocols")
+			os.Exit(1)
+		}
+		protocols = append(protocols, p)
+	}
+
+	if in == "" || out == "" {
+		fmt.Println("Error: Both --in-dir and --out-dir are required")
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	templates := ReadTemplates(in)
+	if len(templates) == 0 {
+		fmt.Println("No templates were found in ", in)
+		os.Exit(1)
+	}
+
+	errors := RenderTemplates(templates, protocols, out)
+	if len(errors) != 0 {
+		fmt.Println("There were errors during template rendering")
+		for _, e := range errors {
+			fmt.Println(e)
+		}
+		os.Exit(1)
+	}
 }

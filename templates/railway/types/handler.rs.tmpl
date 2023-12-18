@@ -1,24 +1,29 @@
+{{- /*gotype: wagen.hugpoint.tech.Protocols*/ -}}
+// !!! THIS FILE IS GENERATED WITH WAGEN !!!
+// !!! DO NOT MODIFY THIS FILE MANUALLY, EDIT TEMPLATE INSTEAD !!!
 use crate::types::events::*;
 use crate::connection::WaylandConnection;
 
 #[allow(unused)]
 pub trait EventHandler{
-{%- for interface in protocol.interfaces %}
-{%- for req in interface.requests %}
-{%- for arg in req.args %}
-{%- if arg.arg_type == "new_id" and arg.interface == "wl_callback" %}
-    fn on_{{ interface.name }}_{{ req.name }}_done(&mut self, event: {{ interface.name ~ "_" ~ req.name ~ "_" ~ "done" | to_pascal }}Event, connection: &WaylandConnection) {}
-{% break %}
-{%- endif  %}
-{%- endfor %}
-{%- endfor %}
+{{- range $protocol := . }}
+{{- range $interface := $protocol.Interfaces }}
+{{- range $req := $interface.Requests }}
+{{- range $arg := $req.Args }}
+{{- if and (eq $arg.Type "new_id") (eq $arg.Interface "wl_callback") }}
+    fn on_{{ $interface.Name }}_{{ $req.Name }}_done(&mut self, event: {{ ToPascal $interface.Name $req.Name "done" }}Event, connection: &WaylandConnection) {}
+{{ break }}
+{{- end  }}
+{{- end }}
+{{- end }}
 
-{%- if interface.events  %}
-{%- if interface.name == "wl_callback" %}{%- continue %}{%- else %}
-{%- for event in interface.events %}
-    fn on_{{ interface.name }}_{{ event.name }}(&mut self, event: {{ interface.name ~ "_" ~ event.name | to_pascal }}Event, connection: &WaylandConnection) {}
-{% endfor %}
-{%- endif  %}
-{%- endif  %}
-{%- endfor %}
+{{- if $interface.Events  }}
+{{- if eq $interface.Name "wl_callback" }}{{- continue }}{{- else }}
+{{- range $event := $interface.Events }}
+    fn on_{{ $interface.Name }}_{{ $event.Name }}(&mut self, event: {{ ToPascal $interface.Name $event.Name }}Event, connection: &WaylandConnection) {}
+{{ end }}
+{{- end  }}
+{{- end  }}
+{{- end }}
+{{- end }}
 }

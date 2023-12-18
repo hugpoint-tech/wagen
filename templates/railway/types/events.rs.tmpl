@@ -1,75 +1,89 @@
+// !!! THIS FILE IS GENERATED WITH WAGEN !!!
+// !!! DO NOT MODIFY THIS FILE MANUALLY, EDIT TEMPLATE INSTEAD !!!
 #[allow(dead_code)]
 
 use crate::types::Fixed;
 use crate::types::enums;
 
-{%- for interface in protocol.interfaces %}
-
-{%- for req in interface.requests %}
-{%- for arg in req.args %}
-{%- if arg.arg_type == "new_id" and arg.interface == "wl_callback" %}
+{{- range $protocol := . }}
+{{- range $interface := $protocol.Interfaces }}
+{{- range $req := $interface.Requests }}
+{{- range $arg := $req.Args }}
+{{- if and (eq $arg.Type "new_id") (eq $arg.Interface "wl_callback") }}
 /// Callback event
 #[derive(Debug)]
-pub struct {{ interface.name ~ "_" ~ req.name |to_pascal }}DoneEvent{
+pub struct {{ ToPascal $interface.Name $req.Name }}DoneEvent{
     /// id of the object the event came from
     pub source_id: u32,
     /// event specific data
     pub data: u32,
 }
-{% break %}
-{%- endif  %}
-{%- endfor %}
-{%- endfor %}
+{{ break }}
+{{- end  }}
+{{- end }}
+{{- end }}
 
-{%- for event in interface.events %}
-{%- for line in event.description %}
-///{{" " ~ line | trim_end }}
-{%- endfor %}
+{{- range $event := $interface.Events }}
+{{- range $line := ToLines $event.Description }}
+/// {{ Trim $line }}
+{{- end }}
 #[derive(Debug)]
-pub struct {{ interface.name ~ "_" ~ event.name | to_pascal }}Event {
-    /// {{ interface.name ~ ":" ~ event.name }} event
+pub struct {{ ToPascal $interface.Name $event.Name }}Event {
+    /// {{$interface.Name}}:{{$event.Name}} event
     /// id of the object the event came from
     pub source_id: u32,
-    {%- for arg in event.args %}
-    {%- if arg.summary %}
-    /// {{ arg.summary }}
-    {%- endif %}
-    {%- if arg.description %}
-    {%- for line in arg.description %}
-    ///{{" " ~ line | trim_end }}
-    {%- endfor %}
-    {%- endif %}
-    {%- if arg.arg_type == "int"%}
-    {%- if arg.enum_type and arg.enum_type is containing(".") %}
-    pub {{ arg.name }}: enums::{{ arg.enum_type | replace(from=".", to="_")| to_pascal }},
-    {%- elif arg.enum_type and not arg.enum_type is containing(".") %}
-    pub {{ arg.name }}: enums::{{ interface.name ~ "_" ~ arg.enum_type | to_pascal }},
-    {%- else %}
-    pub {{ arg.name }}: i32,
-    {%- endif %}
-    {%- elif arg.arg_type == "uint"%}
-    {%- if arg.enum_type and arg.enum_type is containing(".") %}
-    pub {{ arg.name }}: enums::{{ arg.enum_type | replace(from=".", to="_")| to_pascal }},
-    {%- elif arg.enum_type and not arg.enum_type is containing(".") %}
-    pub {{ arg.name }}: enums::{{ interface.name ~ "_" ~ arg.enum_type | to_pascal }},
-    {%- else %}
-    pub {{ arg.name }}: u32,
-    {%- endif %}
-    {%- elif arg.arg_type == "string"%}
-    pub {{ arg.name }}: String,
-    {%- elif arg.arg_type == "fd"%}
-    pub {{ arg.name }}: std::os::fd::RawFd,
-    {%- elif arg.arg_type == "object"%}
-    pub {{ arg.name }}: u32,
-    {%- elif arg.arg_type == "fixed"%}
-    pub {{ arg.name }}: Fixed,
-    {%- elif arg.arg_type == "array"%}
-    pub {{ arg.name }}: Vec<u8>,
-    {%- elif arg.arg_type == "new_id"%}
+    {{- range $arg := $event.Args }}
+    {{- if $arg.Summary }}
+    /// {{ $arg.Summary }}
+    {{- end }}
+    {{- if $arg.Description }}
+    {{- range $line := ToLines $arg.Description }}
+    /// {{ Trim $line }}
+    {{- end }}
+    {{- end }}
+    {{- if eq $arg.Type "int"}}
+    {{- if and $arg.Enum (Contains $arg.Enum ".") }}
+    pub {{ $arg.Name }}: enums::{{ ToPascal $arg.Enum }},
+	{{- end }}
+    {{- if and $arg.Enum (not (Contains $arg.Enum "." )) }}
+    pub {{ $arg.Name }}: enums::{{ ToPascal $interface.Name $arg.Enum }},
+    {{- end }}
+    {{- if not $arg.Enum }}
+    pub {{ $arg.Name }}: i32,
+	{{- end }}
+    {{- end }}
+    {{- if eq $arg.Type "uint"}}
+    {{- if and $arg.Enum (Contains $arg.Enum ".") }}
+    pub {{ $arg.Name }}: enums::{{ ToPascal $arg.Enum }},
+	{{- end }}
+    {{- if and $arg.Enum (not (Contains $arg.Enum ".") ) }}
+    pub {{ $arg.Name }}: enums::{{ ToPascal $interface.Name $arg.Enum }},
+	{{- end }}
+    {{- if not $arg.Enum }}
+    pub {{ $arg.Name }}: u32,
+	{{- end }}
+    {{- end }}
+    {{- if eq $arg.Type "string"}}
+    pub {{ $arg.Name }}: String,
+	{{- end }}
+    {{- if eq $arg.Type "fd"}}
+    pub {{ $arg.Name }}: std::os::fd::RawFd,
+    {{- end }}
+    {{- if eq $arg.Type "object"}}
+    pub {{ $arg.Name }}: u32,
+    {{- end }}
+    {{- if eq $arg.Type "fixed"}}
+    pub {{ $arg.Name }}: Fixed,
+    {{- end }}
+    {{- if eq $arg.Type "array"}}
+    pub {{ $arg.Name }}: Vec<u8>,
+    {{- end }}
+    {{- if eq $arg.Type "new_id"}}
     // new_id
-    pub {{ arg.name }}: u32,
-    {%- endif %}
-    {%- endfor %}
+    pub {{ $arg.Name }}: u32,
+    {{- end }}
+    {{- end }}
 }
-{% endfor %}
-{%- endfor %}
+{{ end }}
+{{- end }}
+{{- end }}

@@ -1,3 +1,5 @@
+// !!! THIS FILE IS GENERATED WITH WAGEN !!!
+// !!! DO NOT MODIFY THIS FILE MANUALLY, EDIT TEMPLATE INSTEAD !!!
 use crate::connection::WaylandConnection;
 use crate::connection::WaylandConnectionPrivate;
 use crate::types::Fixed;
@@ -19,79 +21,80 @@ impl WaylandConnectionPrivate {
 
         match obj {
             Object::Null => panic!("object of type null was sent by the server"),
-        {%- for interface in protocol.interfaces %}
-
-        {%- for req in interface.requests %}
-        {%- for arg in req.args %}
-        {%- if arg.arg_type == "new_id" and arg.interface == "wl_callback" %}
-            Object::{{ interface.name ~ "_" ~ req.name | to_pascal }}Callback => {
+{{- range $protocol := . }}
+    {{- range $interface := $protocol.Interfaces }}
+        {{- range $req := $interface.Requests }}
+        {{- range $arg := $req.Args }}
+        {{- if and (eq $arg.Type "new_id") (eq $arg.Interface "wl_callback") }}
+            Object::{{ ToPascal $interface.Name $req.Name }}Callback => {
                 match op {
                     0 =>{
-                        let event = {{ interface.name ~ "_" ~ req.name | to_pascal }}DoneEvent {
+                        let event = {{ ToPascal $interface.Name $req.Name }}DoneEvent {
                                 source_id: id,
                                 data: self.get_uint(),
                         };
                         println!("dispatch: event {:?}", event);
-                        state.on_{{ interface.name ~ "_" ~ req.name  }}_done(event, c);
+                        state.on_{{ $interface.Name}}_{{ $req.Name }}_done(event, c);
                     },
                     _ => ()
                 }
             },
-        {% break %}
-        {%- endif  %}
-        {%- endfor %}
-        {%- endfor %}
+        {{ break }}
+        {{- end  }}
+        {{- end }}
+        {{- end }}
 
-        {%- if interface.name == "wl_callback" %}
-        {%- continue %}
-        {%- endif  %}
-        {%- if interface.events %}
-            Object::{{ interface.name | to_pascal }} => {
+        {{- if eq $interface.Name "wl_callback" }}
+        {{- continue }}
+        {{- end  }}
+        {{- if $interface.Events }}
+            Object::{{ ToPascal $interface.Name }} => {
                 match op {
-                {%- for event in interface.events %}
-                    {{ event.opcode }} =>{
-                        let event = {{ interface.name ~ "_" ~ event.name | to_pascal }}Event {
+                {{- range $event := $interface.Events }}
+                    {{ $event.Opcode }} =>{
+                        let event = {{ ToPascal $interface.Name $event.Name }}Event {
                             source_id: id,
-                            {%- for arg in event.args %}
-                            {%- if arg.arg_type == "int"%}
-                            {%- if arg.enum_type %}
-                            {{ arg.name }}: (self.get_int() as u32).into(),
-                            {%- else %}
-                            {{ arg.name }}: self.get_int(),
-                            {%- endif %}
-                            {%- elif arg.arg_type == "uint"%}
-                            {%- if arg.enum_type %}
-                            {{ arg.name }}: self.get_uint().into(),
-                            {%- else %}
-                            {{ arg.name }}: self.get_uint(),
-                            {%- endif %}
-                            {%- elif arg.arg_type == "string"%}
-                            {{ arg.name }}: self.get_str(),
-                            {%- elif arg.arg_type == "fd"%}
-                            {{ arg.name }}: self.get_fd(),
-                            {%- elif arg.arg_type == "object"%}
-                            {{ arg.name }}: self.get_uint(),
-                            {%- elif arg.arg_type == "fixed"%}
-                            {{ arg.name }}: Fixed::new(self.get_uint()),
-                            {%- elif arg.arg_type == "array"%}
-                            {{ arg.name }}: self.get_vec(),
-                            {%- elif arg.arg_type == "new_id"%}
+                            {{- range $arg := $event.Args }}
+                            {{- if eq $arg.Type "int"}}
+                            {{- if $arg.Enum }}
+                            {{ $arg.Name }}: (self.get_int() as u32).into(),
+                            {{- else }}
+                            {{ $arg.Name }}: self.get_int(),
+                            {{- end }}
+                            {{- end }}{{- if eq $arg.Type  "uint"}}
+                            {{- if $arg.Enum }}
+                            {{ $arg.Name }}: self.get_uint().into(),
+                            {{- else }}
+                            {{ $arg.Name }}: self.get_uint(),
+                            {{- end }}
+                            {{- end }}{{- if eq $arg.Type  "string"}}
+                            {{ $arg.Name }}: self.get_str(),
+                            {{- end }}{{- if eq $arg.Type  "fd"}}
+                            {{ $arg.Name }}: self.get_fd(),
+                            {{- end }}{{- if eq $arg.Type  "object"}}
+                            {{ $arg.Name }}: self.get_uint(),
+                            {{- end }}{{- if eq $arg.Type  "fixed"}}
+                            {{ $arg.Name }}: Fixed::new(self.get_uint()),
+                            {{- end }}{{- if eq $arg.Type  "array"}}
+                            {{ $arg.Name }}: self.get_vec(),
+                            {{- end }}{{- if eq $arg.Type  "new_id"}}
                             // new_id
-                            {{ arg.name }}: self.get_uint(),
-                            {%- endif %}
-                            {%- endfor %}
+                            {{ $arg.Name }}: self.get_uint(),
+                            {{- end }}
+                            {{- end }}
                         };
                         println!("dispatch: event {:?}", event);
-                        state.on_{{interface.name}}_{{ event.name }}(event, c);
+                        state.on_{{ $interface.Name }}_{{ $event.Name }}(event, c);
                     },
-        {%- endfor %}
+        {{- end }}
                     _ => (),
                 }
             },
-        {%- else %}
-            Object::{{ interface.name | to_pascal }} => panic!("event from object with no events"),
-        {%- endif %}
-{%- endfor %}
+        {{- else }}
+            Object::{{ ToPascal $interface.Name }} => panic!("event from object with no events"),
+        {{- end }}
+    {{- end }}
+{{- end }}
         }
     }
 }

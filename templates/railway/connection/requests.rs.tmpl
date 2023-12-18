@@ -1,3 +1,5 @@
+// !!! THIS FILE IS GENERATED WITH WAGEN !!!
+// !!! DO NOT MODIFY THIS FILE MANUALLY, EDIT TEMPLATE INSTEAD !!!
 use crate::types::Request;
 use crate::types::Object;
 use crate::types::MessageHeader;
@@ -13,67 +15,76 @@ pub fn enqueue(&self, req: Request) -> u32 {
         let mut new_id: u32 = 0;
 
         match req {
-        {%- for interface in protocol.interfaces %}
-        {%- for request in interface.requests %}
-            // {{ interface.name ~ ":" ~ request.name }}
-            {{ interface.name ~ "_" ~ request.name | to_pascal }}{sendto
-           {%- for arg in request.args -%}
-            {%- if arg.arg_type == "new_id" -%}
-            {%- if not arg.interface -%}
+{{- range $protocol := . }}
+    {{- range $interface := $protocol.Interfaces }}
+        {{- range $request := $interface.Requests }}
+            // {{ $interface.Name }}:{{ $request.Name }}
+            {{ ToPascal $interface.Name $request.Name }}{sendto
+           {{- range $arg := $request.Args -}}
+            {{- if eq $arg.Type "new_id" -}}
+            {{- if not $arg.Interface -}}
             ,if_name,if_version
-            {%- endif -%}
-            {%- else -%}
-            ,{{ arg.name }}
-            {%- endif -%}
-            {%- endfor -%}} => {
-                {%- for arg in request.args %}
-                {%- if  arg.arg_type == "new_id" and arg.interface and arg.interface == "wl_callback" %}
-                new_id = data.allocate_id(Object::{{interface.name ~ "_" ~ request.name | to_pascal}}Callback);
-                {%- endif %}
-                {%- if  arg.arg_type == "new_id" and arg.interface and not arg.interface == "wl_callback"%}
-                new_id = data.allocate_id(Object::{{arg.interface| to_pascal}});
-                {%- endif %}
-                {%- if  arg.arg_type == "new_id" and not arg.interface %}
+            {{- end -}}
+            {{- else -}}
+            ,{{ $arg.Name }}
+            {{- end -}}
+            {{- end -}} } => {
+                {{- range $arg := $request.Args }}
+                {{- if and (and (eq $arg.Type "new_id") $arg.Interface) (eq $arg.Interface "wl_callback") }}
+                new_id = data.allocate_id(Object::{{ ToPascal $interface.Name $request.Name}}Callback);
+                {{- end }}
+                {{- if and (and (eq $arg.Type "new_id") $arg.Interface) (not (eq $arg.Interface "wl_callback")) }}
+                new_id = data.allocate_id(Object::{{ ToPascal $arg.Interface}});
+                {{- end }}
+                {{- if and (eq $arg.Type "new_id") (not $arg.Interface) }}
                 let kind = Object::from_str(&if_name).unwrap();
                 new_id = data.allocate_id(kind);
-                {%- endif %}
-                {%- endfor %}
+                {{- end }}
+                {{- end }}
                 let hdr_pos = data.send_buf.len();
                 data.send_buf.set_len(hdr_pos + 8);
-                {%- for arg in request.args %}
-                {%- if arg.arg_type == "int"%}
-                data.write_int({{ arg.name }});
-                {%- elif arg.arg_type == "uint"%}
-                data.write_uint({{ arg.name }});
-                {%- elif arg.arg_type == "string"%}
-                data.write_string({{arg.name}});
-                {%- elif arg.arg_type == "fd"%}
-                data.write_fd({{arg.name}});
-                {%- elif arg.arg_type == "object"%}
-                data.write_uint({{ arg.name }});
-                {%- elif arg.arg_type == "fixed"%}
-                // data.write_uint({{ arg.name }}.0);
-                {%- elif arg.arg_type == "array"%}
-                data.write_array({{ arg.name }});
-                {%- elif arg.arg_type == "new_id"%}
-                {%- if arg.interface %}
+                {{- range $arg := $request.Args }}
+                {{- if eq $arg.Type "int"}}
+                data.write_int({{ $arg.Name }});
+				{{- end }}
+                {{- if eq $arg.Type "uint"}}
+                data.write_uint({{ $arg.Name }});
+				{{- end }}
+                {{- if eq $arg.Type "string"}}
+                data.write_string({{$arg.Name}});
+				{{- end }}
+                {{- if eq $arg.Type "fd"}}
+                data.write_fd({{$arg.Name}});
+				{{- end }}
+                {{- if eq $arg.Type "object"}}
+                data.write_uint({{ $arg.Name }});
+				{{- end }}
+                {{- if eq $arg.Type "fixed"}}
+                // data.write_uint({{ $arg.Name }}.0);
+				{{- end }}
+                {{- if eq $arg.Type "array"}}
+                data.write_array({{ $arg.Name }});
+				{{- end }}
+                {{- if eq $arg.Type "new_id"}}
+                {{- if $arg.Interface }}
                 data.write_uint(new_id);
-                {%- else %}
+                {{- else }}
                 data.write_string(if_name);
                 data.write_uint(if_version);
                 data.write_uint(new_id);
-                {%- endif %}
-                {%- endif %}
-                {%- endfor %}
+                {{- end }}
+                {{- end }}
+                {{- end }}
                 let hdr = MessageHeader {
                     obj_id: sendto,
-                    opcode: {{request.opcode}}u16,
+                    opcode: {{$request.Opcode}}u16,
                     len: (data.send_buf.len() - hdr_pos) as u16
                 };
                 data.write_header(hdr, hdr_pos);
             },
-        {%- endfor %}
-        {%- endfor %}
+        {{- end }}
+    {{- end }}
+{{- end }}
         }
         return new_id
     }

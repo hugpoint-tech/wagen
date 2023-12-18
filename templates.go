@@ -26,6 +26,8 @@ func ToLines(s string) []string {
 
 func ToPascal(chunks ...string) string {
 	concatenated := strings.Join(chunks, "_")
+	concatenated = strings.ReplaceAll(concatenated, ".", "_")
+
 	words := strings.Split(concatenated, "_")
 
 	for i, word := range words {
@@ -38,72 +40,82 @@ var TemplateFuncs = template.FuncMap{
 	"ToLines":  ToLines,
 	"ToPascal": ToPascal,
 	"Trim":     strings.TrimSpace,
+	"Contains": strings.Contains,
+	"Upper":    strings.ToUpper,
 }
 
-func ReadTemplates() map[string]*template.Template {
-	templateFiles := []string{}
+func ReadTemplates(dir string) map[string]*template.Template {
+	files := []string{}
+	templates := make(map[string]*template.Template)
 
-	err := filepath.WalkDir("templates", func(s string, d fs.DirEntry, err error) error {
+	dir = filepath.Clean(dir)
+	if !strings.HasSuffix(dir, string(filepath.Separator)) {
+		dir += string(filepath.Separator)
+	}
+
+	err := filepath.WalkDir(dir, func(s string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		if !d.IsDir() && strings.HasSuffix(s, ".tmpl") {
-			templateFiles = append(templateFiles, s)
+
+			files = append(files, s)
 		}
 		return nil
 	})
 	AssertOk("failed to walk templates directory", err)
 
-	parsedTemplates := make(map[string]*template.Template)
+	for _, fname := range files {
 
-	for _, file := range templateFiles {
-		// Open the template file
-		tmplFile, err := os.Open(file)
+		file, err := os.Open(fname)
 		if err != nil {
-			fmt.Println("Error opening file:", err)
+			fmt.Println("error opening file:", err)
 			continue
 		}
-		defer tmplFile.Close()
+		defer file.Close()
 
-		name := path.Base(file)
-		tmpl, err := template.New(name).Funcs(TemplateFuncs).ParseFiles(file)
+		name := path.Base(fname)
+		tmpl, err := template.New(name).Funcs(TemplateFuncs).ParseFiles(fname)
 		if err != nil {
-			fmt.Println("Error parsing template:", err)
+			fmt.Println("error parsing template", fname, err)
 			continue
 		}
 
-		parsedTemplates[file] = tmpl
+		templates[strings.TrimPrefix(fname, dir)] = tmpl
 	}
 
-	return parsedTemplates
+	return templates
 }
 
-func ExecuteTemplates(templates map[string]*template.Template, protocols []Protocol) {
-	for name, tmpl := range templates {
-		parentDir := filepath.Dir(name)
-		parentDir = strings.TrimPrefix(parentDir, "templates/")
-		renderDir := "rendered/" + parentDir
-		fileName := filepath.Base(name)
+func RenderTemplates(templates map[string]*template.Template, protocols []Protocol, out string) []error {
+	var errors []error
 
-		err := os.MkdirAll(renderDir, 0755)
+	for tname, tmpl := range templates {
+		indir := filepath.Dir(tname)
+		outdir := out + "/" + indir
+		inname := filepath.Base(tname)
+
+		err := os.MkdirAll(outdir, 0755)
 		if err != nil {
-			fmt.Println("Error creating output file directory:", err)
+			errors = append(errors, fmt.Errorf("error creating output file directory: %s", err))
 			continue
 		}
 
-		outputFile, err := os.Create(strings.TrimSuffix(renderDir+"/"+fileName, ".tmpl"))
+		outname := strings.TrimSuffix(outdir+"/"+inname, ".tmpl")
+		outfile, err := os.Create(outname)
 		if err != nil {
-			fmt.Println("Error creating output file:", err)
+			errors = append(errors, fmt.Errorf("error creating output file %s: %s", outname, err))
 			continue
 		}
-		defer outputFile.Close()
+		defer outfile.Close()
 
-		err = tmpl.Execute(outputFile, protocols)
+		err = tmpl.Execute(outfile, protocols)
 		if err != nil {
-			fmt.Println("Error executing template:", err)
+			errors = append(errors, fmt.Errorf("failed to execute template: %s", err))
 			continue
 		}
-		fmt.Println("Template", name, "executed and saved to", outputFile.Name())
+		fmt.Println("OK:", tname, "->", outfile.Name())
 	}
+	return errors
 }
